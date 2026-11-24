@@ -1,0 +1,48 @@
+name: Shop odometer emails
+
+on:
+  schedule:
+    # 6:45 AM Pacific Mon/Wed/Fri. Two crons cover daylight/standard time; the script runs only the matching one.
+    - cron: "45 13 * * 1,3,5"
+    - cron: "45 14 * * 1,3,5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run, test, or send"
+        default: "dry-run"
+      test_to:
+        description: "Test recipient (test mode only)"
+        default: ""
+      shop:
+        description: "Limit to one shop label (optional)"
+        default: ""
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl
+      - name: Run
+        env:
+          MOTIVE_API_KEY: ${{ secrets.MOTIVE_API_KEY }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          MS_TENANT_ID: ${{ secrets.MS_TENANT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}
+          MODE: ${{ github.event_name == 'schedule' && 'send' || inputs.mode }}
+          TEST_TO: ${{ inputs.test_to }}
+          SHOP: ${{ inputs.shop }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          args=(--mode "$MODE")
+          [ -n "$TEST_TO" ] && args+=(--test-to "$TEST_TO")
+          [ -n "$SHOP" ] && args+=(--shop "$SHOP")
+          [ -n "$SCHEDULE" ] && args+=(--schedule "$SCHEDULE")
+          python odometer_job.py "${args[@]}"
