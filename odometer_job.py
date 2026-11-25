@@ -6,7 +6,8 @@ on every run) assigns to that shop.
 Environment (GitHub secrets):
   MOTIVE_API_KEY
   DROPBOX_APP_KEY, DROPBOX_REFRESH_TOKEN
-  MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET
+  RESEND_API_KEY   (email via Resend; preferred)
+    or MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET (email via Microsoft Graph)
   RECIPIENTS_JSON  (sender + addresses, kept out of the repo), e.g.
     {"sender": "...", "cc": ["..."],
      "shops": {"Jack's Diesel": {"to": ["..."]}, "Ryder Fontana": {"to": ["..."], "cc": []}}}
@@ -155,6 +156,24 @@ def graph_send(sender, to, cc, subject, body_html):
          {"Authorization": f"Bearer {tok}"}, data=msg)
 
 
+def resend_send(sender, to, cc, bcc, subject, body_html):
+    msg = {"from": f"Seaside Logistics <{sender}>", "to": to, "subject": subject, "html": body_html,
+           "reply_to": sender}
+    if cc:
+        msg["cc"] = cc
+    if bcc:
+        msg["bcc"] = bcc
+    http("https://api.resend.com/emails", "POST",
+         {"Authorization": f"Bearer {os.environ['RESEND_API_KEY']}", "User-Agent": "odometer-job/1.0"}, data=msg)
+
+
+def send_email(sender, to, cc, bcc, subject, body_html):
+    if os.environ.get("RESEND_API_KEY"):
+        resend_send(sender, to, cc, bcc, subject, body_html)
+    else:
+        graph_send(sender, to, cc, subject, body_html)  # Graph saves to Sent Items itself
+
+
 # ---------- main ----------
 def main():
     ap = argparse.ArgumentParser()
@@ -218,7 +237,8 @@ def main():
         if args.mode == "dry-run":
             print(f"DRY RUN {shop['label']}: to={to} cc={cc} trucks({len(shop_rows)})={nums}")
             continue
-        graph_send(cfg["sender"], to, cc, subject, body)
+        bcc = [] if args.mode == "test" else [cfg["sender"]]  # keep a copy in the Administration mailbox
+        send_email(cfg["sender"], to, cc, bcc, subject, body)
         print(f"SENT {shop['label']}: to={to} cc={cc} trucks({len(shop_rows)})={nums}")
 
 
