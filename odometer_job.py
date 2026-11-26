@@ -6,8 +6,8 @@ on every run) assigns to that shop.
 Environment (GitHub secrets):
   MOTIVE_API_KEY
   DROPBOX_APP_KEY, DROPBOX_REFRESH_TOKEN
-  RESEND_API_KEY   (email via Resend; preferred)
-    or MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET (email via Microsoft Graph)
+  MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET (email via Microsoft 365 / Graph; preferred)
+    or RESEND_API_KEY (email via Resend, fallback)
   RECIPIENTS_JSON  (sender + addresses, kept out of the repo), e.g.
     {"sender": "...", "cc": ["..."],
      "shops": {"Jack's Diesel": {"to": ["..."]}, "Ryder Fontana": {"to": ["..."], "cc": []}}}
@@ -168,10 +168,10 @@ def resend_send(sender, to, cc, bcc, subject, body_html):
 
 
 def send_email(sender, to, cc, bcc, subject, body_html):
-    if os.environ.get("RESEND_API_KEY"):
-        resend_send(sender, to, cc, bcc, subject, body_html)
+    if os.environ.get("MS_CLIENT_ID"):
+        graph_send(sender, to, cc, subject, body_html)  # Microsoft 365; saves to Sent Items itself
     else:
-        graph_send(sender, to, cc, subject, body_html)  # Graph saves to Sent Items itself
+        resend_send(sender, to, cc, bcc, subject, body_html)
 
 
 # ---------- main ----------
