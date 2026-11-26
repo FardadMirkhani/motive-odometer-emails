@@ -177,7 +177,7 @@ def send_email(sender, to, cc, bcc, subject, body_html):
 # ---------- main ----------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["dry-run", "test", "send"], default="dry-run")
+    ap.add_argument("--mode", choices=["dry-run", "test", "test-cc", "send"], default="dry-run")
     ap.add_argument("--test-to")
     ap.add_argument("--shop", help="limit to one shop label")
     ap.add_argument("--schedule", default="", help="cron string that triggered the run (DST guard)")
@@ -200,7 +200,7 @@ def main():
     if args.mode == "send" and now.strftime("%A") not in cfg["send_days"]:
         print(f"Skip: {now:%A} is not a send day.")
         return
-    if args.mode == "test" and not args.test_to:
+    if args.mode in ("test", "test-cc") and not args.test_to:
         sys.exit("--test-to required in test mode")
 
     rows = motive_rows(os.environ["MOTIVE_API_KEY"], cfg["motive_group"])
@@ -230,14 +230,18 @@ def main():
         cc = shop.get("cc", cfg["cc"])
         subject = f"Odometer Readings - {today}"
         to = shop["to"]
-        if args.mode == "test":
+        if args.mode in ("test", "test-cc"):
             subject = f"[TEST - real email goes to {'; '.join(to)} cc {'; '.join(cc)}] {subject}"
-            to, cc = [args.test_to], []
+            to = [args.test_to]
+            if args.mode == "test":
+                cc = []  # test-cc keeps the real CC list
+            else:
+                cc = [a for a in cc if a.lower() != args.test_to.lower()]
         nums = ", ".join(r["number"] for r in shop_rows)
         if args.mode == "dry-run":
             print(f"DRY RUN {shop['label']}: to={to} cc={cc} trucks({len(shop_rows)})={nums}")
             continue
-        bcc = [] if args.mode == "test" else [cfg["sender"]]  # keep a copy in the Administration mailbox
+        bcc = [] if args.mode != "send" else [cfg["sender"]]  # keep a copy in the Administration mailbox
         send_email(cfg["sender"], to, cc, bcc, subject, body)
         print(f"SENT {shop['label']}: to={to} cc={cc} trucks({len(shop_rows)})={nums}")
 

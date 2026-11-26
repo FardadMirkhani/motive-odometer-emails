@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry-run, test, or send"
+        description: "dry-run, test, test-cc (test to you, real CC kept), or send"
         default: "dry-run"
       test_to:
         description: "Test recipient (test mode only)"
